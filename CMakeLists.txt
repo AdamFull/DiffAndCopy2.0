@@ -17,10 +17,10 @@ else()
 	add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-#include_directories(${CMAKE_CURRENT_SOURCE_DIR}/win32/)
-#add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/win32/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/json11/)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/json11/)
 
-file(GLOB CPP_FILES *.cpp *.c)
+file(GLOB CPP_FILES *.cpp *.c *.hpp)
 add_executable(DiffAndCopy ${CPP_FILES})
 
-target_link_libraries(DiffAndCopy --coverage)
+target_link_libraries(DiffAndCopy json11 --coverage)

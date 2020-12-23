@@ -1,0 +1,12 @@
+{
+    "default_input_path": "",
+    "default_output_path": "",
+    "reference_dirrectory": "EN",
+    "target_subdirrectory": "data",
+    "output_subdirrectory": "res",
+    "input_locals": ["RU", "CS", "DE", "FR", "NL", "JP"],
+    "output_locals": ["data_ru", "data_cs", "data_de", "data_fr", "data_nl", "data_jp"],
+    "enable_logging": true,
+    "enable_progressbar": false,
+    "ignore_flv": false
+}
