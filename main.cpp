@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <thread>
+#include <mutex>
 #include "sha256.h"
 
 namespace fs = std::filesystem;
@@ -20,7 +22,6 @@ std::vector<std::string> inputLocals = { "RU", "CS", "DE", "FR", "NL", "JP" };
 std::vector<std::string> outputLocals = { "data_ru", "data_cs", "data_de", "data_fr", "data_nl", "data_jp" };
 
 std::chrono::steady_clock::time_point prvTime;
-std::chrono::steady_clock::time_point curTime;
 
 typedef struct {
     fs::path fpath;
@@ -29,6 +30,9 @@ typedef struct {
     std::string fhash;
     size_t fSize;
 } node;
+
+std::vector<std::thread> vWorkerThreads;
+std::mutex mReadProtect;
 
 //Walk dirrectory
 //Parallelize all dirrectory reading
@@ -48,14 +52,12 @@ typedef struct {
 void StartTimer()
 {
     prvTime = std::chrono::steady_clock::now();
-    curTime = std::chrono::steady_clock::now();
-    prvTime = curTime;
 }
 
 double StopTimer()
 {
-    curTime = std::chrono::steady_clock::now();
-    return std::chrono::duration<double>(curTime - prvTime).count();
+    std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::duration<double> >(curTime - prvTime).count();
 }
 
 bool startWith(std::string const & srString, std::string const & srStartString)
@@ -66,20 +68,6 @@ bool startWith(std::string const & srString, std::string const & srStartString)
         return false;
 }
 
-node GetFileParams(const fs::directory_entry entry)
-{
-    node newNode;
-    std::ifstream fsCurFile;
-    newNode.fpath = entry.path();
-    newNode.fname = entry.path().filename().string();
-    newNode.dpath = newNode.fpath.parent_path();
-    newNode.fSize = entry.file_size();
-    fsCurFile.open(newNode.fpath);
-    newNode.fhash = sha256(std::string((std::istreambuf_iterator<char>(fsCurFile)), std::istreambuf_iterator<char>()));
-    fsCurFile.close();
-    return newNode;
-}
-
 node GetFileParams(const fs::path entry)
 {
     node newNode;
@@ -87,35 +75,54 @@ node GetFileParams(const fs::path entry)
     newNode.fpath = entry;
     newNode.fname = entry.filename().string();
     newNode.dpath = newNode.fpath.parent_path();
-    fsCurFile.open(newNode.fpath);
-    newNode.fhash = sha256(std::string((std::istreambuf_iterator<char>(fsCurFile)), std::istreambuf_iterator<char>()));
-    fsCurFile.close();
+
+    if(entry.extension() == ".png")
+    {
+        fsCurFile.open(newNode.fpath, std::ios_base::in | std::ios_base::binary | std::ios::ate);
+
+        if(fsCurFile)
+        {
+            char* pngdata = 0;
+            size_t pngsize = fsCurFile.tellg();
+
+            pngdata = new char[pngsize + 1];
+            fsCurFile.read(pngdata, pngsize);
+            newNode.fhash = sha256(pngdata);
+            delete [] pngdata;
+        }
+        fsCurFile.close();
+    }
+    else
+    {
+        fsCurFile.open(newNode.fpath);
+        newNode.fhash = sha256(std::string((std::istreambuf_iterator<char>(fsCurFile)), std::istreambuf_iterator<char>()));
+        fsCurFile.close();
+    }
+    
     return newNode;
 }
 
 //Get file stats
-
-void CheckDiffAndCopy(node n, fs::path pTarget, size_t index, bool exists = false)
+void CheckDiffAndCopy(std::string rHash, std::string sTarget, std::string inLoc, std::string outLoc)
 {
-    node nTarget = GetFileParams(pTarget);
+    node nTarget = GetFileParams(fs::path(sTarget));
 
-    if((n.fhash != nTarget.fhash) || exists)
+    if(rHash != nTarget.fhash)
     {
-        std::string outPath = outputDir + "\\res\\" + outputLocals.at(index) + "\\data";
-        std::string outPathPrefix = sourcesDir + "\\" + inputLocals.at(index) + "\\data";
-        //TODO: Remove filename from path (Get folder path)
+        
+        std::string outPath = outputDir + "\\res\\" + outLoc + "\\data";
+        std::string outPathPrefix = sourcesDir + "\\" + inLoc + "\\data";
         std::string sRealFolderPath = outPath + nTarget.dpath.string().erase(0, outPathPrefix.size());
         fs::path realFolderPath = fs::path(sRealFolderPath);
 
+        //mReadProtect.lock();
         fs::create_directories(realFolderPath);
-        if(exists)
-            fs::copy(n.fpath, realFolderPath);
-        else
-            fs::copy(nTarget.fpath, realFolderPath);
+        fs::copy(nTarget.fpath, realFolderPath);
+        //mReadProtect.unlock();
     }
 }
 
-void ReadDirrectory(fs::path srSearchPath /*, std::vector<node> & vTestFiles*/)
+void ReadDirrectory(fs::path srSearchPath)
 {
     for (const auto& entry : fs::directory_iterator(srSearchPath)) 
     {
@@ -124,7 +131,7 @@ void ReadDirrectory(fs::path srSearchPath /*, std::vector<node> & vTestFiles*/)
             ReadDirrectory(entry);
         else if (entry.is_regular_file())
         {
-            node nReference = GetFileParams(entry);
+            node nReference = GetFileParams(entry.path());
             for(size_t i = 0; i < inputLocals.size(); i++)
             {
                 std::string sCurPath = entry.path().string();
@@ -132,9 +139,9 @@ void ReadDirrectory(fs::path srSearchPath /*, std::vector<node> & vTestFiles*/)
                 std::string sSubstr = std::string("\\EN\\");
                 sCurPath.replace(sCurPath.find(sSubstr), sSubstr.length(), std::string("\\" + inputLocals[i] + "\\"));
                 fs::path pCurPath = fs::path(sCurPath);
-                //TODO: Start in threads
+                if(fs::exists(pCurPath))
+                    vWorkerThreads.emplace_back(CheckDiffAndCopy, nReference.fhash, sCurPath, inputLocals.at(i), outputLocals.at(i));
                 //TODO: Add my progress bar
-                CheckDiffAndCopy(nReference, pCurPath, i, !fs::exists(pCurPath));
             }
         }
         else
@@ -164,6 +171,13 @@ int main(int argc, const char * argv[])
     std::cout << "Checking difference..." << std::endl;
     fs::path curPath = fs::path(sourcesDir + "\\" + "EN" + "\\data");
     ReadDirrectory(curPath);
+
+    for(std::thread & th : vWorkerThreads)
+    {
+        if(th.joinable())
+            th.join();
+    }
+    vWorkerThreads.clear();
 
     //TODO: Check is already exists
     std::cout << "Copying EN folder." << std::endl;
