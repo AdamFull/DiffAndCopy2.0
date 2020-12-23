@@ -101,7 +101,7 @@ void CheckDiffAndCopy(node n, fs::path pTarget, size_t index, bool exists = fals
 
     if((n.fhash != nTarget.fhash) || exists)
     {
-        std::string outPath = outputDir + "\\res\\" + outputLocals.at(index) + "\\res";
+        std::string outPath = outputDir + "\\res\\" + outputLocals.at(index) + "\\data";
         std::string outPathPrefix = sourcesDir + "\\" + inputLocals.at(index) + "\\data";
         //TODO: Remove filename from path (Get folder path)
         std::string sRealFolderPath = outPath + nTarget.dpath.string().erase(0, outPathPrefix.size());
