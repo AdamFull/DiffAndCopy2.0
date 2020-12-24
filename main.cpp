@@ -16,19 +16,19 @@
 #define JSON11_ENABLE_DR1467_CANARY 0
 #endif
 
-#define DEBUG
-
 namespace fs = std::filesystem;
 
 #define VERSION "version 2.0"
 
 //TODO: Load this data from .ini
-std::string sDefaultInPath = "E:\\svn\\game";
-std::string sDefaultOutpPath = "E:\\svn\\output";
+std::string sDefaultInPath = "";
+std::string sDefaultOutpPath = "";
 
-std::string sRefDir = "EN";
-std::string sTargetSubDir = "data";
-std::string sOutSubDir = "res";
+std::string sRefDir = "";
+std::string sTargetSubDir = "";
+std::string sOutSubDir = "";
+
+std::string sConfigPath = "config.json";
 
 std::vector<std::string> inputLocals = { "RU", "CS", "DE", "FR", "NL", "JP" };
 std::vector<std::string> outputLocals = { "data_ru", "data_cs", "data_de", "data_fr", "data_nl", "data_jp" };
@@ -71,6 +71,26 @@ size_t diffCounter = 0;
     //If files have difference save to folder
 //End
 
+/*******************************************************************************************/
+/*****************************************UTILS*********************************************/
+/*******************************************************************************************/
+std::string getCmdOption(char ** begin, char ** end, const std::string & option)
+{
+    char ** itr = std::find(begin, end, option);
+    if (itr != end && ++itr != end)
+    {
+        return std::string(*itr);
+    }
+    return 0;
+}
+
+/*******************************************************************************************/
+bool cmdOptionExists(char** begin, char** end, const std::string& option)
+{
+    return std::find(begin, end, option) != end;
+}
+
+/*******************************************************************************************/
 void DrawProgressBar(size_t done, size_t all, size_t bar_width = 50)
 {
     double progress = (double)done/(double)all;
@@ -85,17 +105,20 @@ void DrawProgressBar(size_t done, size_t all, size_t bar_width = 50)
     std::cout.flush();
 }
 
+/*******************************************************************************************/
 void StartTimer()
 {
     prvTime = std::chrono::steady_clock::now();
 }
 
+/*******************************************************************************************/
 double StopTimer()
 {
     std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::duration<double> >(curTime - prvTime).count();
 }
 
+/*******************************************************************************************/
 bool startWith(std::string const & srString, std::string const & srStartString)
 {
     if( srString.length() >= srStartString.length() )
@@ -104,6 +127,9 @@ bool startWith(std::string const & srString, std::string const & srStartString)
         return false;
 }
 
+/*******************************************************************************************/
+/***************************************File work*******************************************/
+/*******************************************************************************************/
 node GetFileParams(const fs::path entry)
 {
     node newNode;
@@ -138,7 +164,7 @@ node GetFileParams(const fs::path entry)
     return newNode;
 }
 
-//Get file stats
+/*******************************************************************************************/
 void CheckDiffAndCopy(std::string rHash, std::string sTarget, std::string inLoc, std::string outLoc)
 {
     node nTarget = GetFileParams(fs::path(sTarget));
@@ -161,11 +187,11 @@ void CheckDiffAndCopy(std::string rHash, std::string sTarget, std::string inLoc,
         {
             if(bEnableLogging) logFile << "Error: " << "can't write file" << std::endl;
         }
-        
         //mReadProtect.unlock();
     }
 }
 
+/*******************************************************************************************/
 void ReadDirrectory(fs::path srSearchPath)
 {
     for (const auto& entry : fs::directory_iterator(srSearchPath)) 
@@ -191,7 +217,6 @@ void ReadDirrectory(fs::path srSearchPath)
                 if(bEnableProgressBar) filesPassed++;
                 if(fs::exists(pCurPath))
                     vWorkerThreads.emplace_back(CheckDiffAndCopy, nReference.fhash, sCurPath, inputLocals.at(i), outputLocals.at(i));
-                //TODO: Add my progress bar
             }
         }
         else
@@ -199,6 +224,7 @@ void ReadDirrectory(fs::path srSearchPath)
     }
 }
 
+/*******************************************************************************************/
 void CheckInputPaths(std::vector<std::string> * inputsCheck, std::vector<std::string> * outputsCheck)
 {
     for(size_t i = 0; i < inputsCheck->size(); i++)
@@ -212,13 +238,14 @@ void CheckInputPaths(std::vector<std::string> * inputsCheck, std::vector<std::st
     }
 }
 
-void ReadConfiguration()
+/*******************************************************************************************/
+bool ReadConfiguration()
 {
     std::ifstream jsonConfig;
-    #ifdef DEBUG
+    #ifdef Debug
     jsonConfig.open("..\\..\\config.json");
     #else
-    jsonConfig.open("config.json");
+    jsonConfig.open(sConfigPath);
     #endif
 
     if(jsonConfig)
@@ -232,10 +259,13 @@ void ReadConfiguration()
                 sDefaultInPath = json["default_input_path"].string_value();
             if(sDefaultOutpPath.empty())
                 sDefaultOutpPath = json["default_output_path"].string_value();
-
-            sRefDir = json["reference_dirrectory"].string_value();
-            sTargetSubDir = json["target_subdirrectory"].string_value();
-            sOutSubDir = json["output_subdirrectory"].string_value();
+            
+            if(sRefDir.empty())
+                sRefDir = json["reference_dirrectory"].string_value();
+            if(sTargetSubDir.empty())
+                sTargetSubDir = json["target_subdirrectory"].string_value();
+            if(sOutSubDir.empty())
+                sOutSubDir = json["output_subdirrectory"].string_value();
 
             inputLocals.clear();
             for(auto &it : json["input_locals"].array_items())
@@ -248,27 +278,70 @@ void ReadConfiguration()
             {
                 outputLocals.push_back(it.string_value());
             }
-            //inputLocals = ;
-            //outputLocals = ;
 
             bEnableLogging = json["enable_logging"].bool_value();
             bEnableProgressBar = json["enable_progressbar"].bool_value();
             bIgnoreFlv = json["ignore_flv"].bool_value();
+            
+            jsonConfig.close();
+            return true;
         }
-        jsonConfig.close();
     }
+    return false;
 }
 
+/*******************************************************************************************/
 size_t GetNumOfFilesInDirrectory(std::filesystem::path path)
 {
     return (std::size_t)std::distance(fs::recursive_directory_iterator{path}, fs::recursive_directory_iterator{});
 }
 
-int main(int argc, const char * argv[])
+/*******************************************************************************************/
+int main(int argc, char * argv[])
 {
-    //TODO: add reading arguments
+    if(argc > 1)
+    {
+        if(cmdOptionExists(argv, argv+argc, "-i"))
+            sDefaultInPath = getCmdOption(argv, argv+argc, "-i");
+
+        if(cmdOptionExists(argv, argv+argc, "-o"))
+            sDefaultOutpPath = getCmdOption(argv, argv+argc, "-o");
+
+        if(cmdOptionExists(argv, argv+argc, "-rd"))
+            sRefDir = getCmdOption(argv, argv+argc, "-rd");
+
+        if(cmdOptionExists(argv, argv+argc, "-sd"))
+            sTargetSubDir = getCmdOption(argv, argv+argc, "-sd");
+
+        if(cmdOptionExists(argv, argv+argc, "-od"))
+            sOutSubDir = getCmdOption(argv, argv+argc, "-od");
+
+        if(cmdOptionExists(argv, argv+argc, "-cp"))
+            sConfigPath = getCmdOption(argv, argv+argc, "-cp");
+        
+        if(cmdOptionExists(argv, argv+argc, "-h"))
+        {
+            std::cout << "-i Input dirrectory path." << std::endl;
+            std::cout << "-o Output dirrectory path." << std::endl;
+            std::cout << "-rd Reference folder name." << std::endl;
+            std::cout << "-sd Target subdirrectory. Directory inside reference folder." << std::endl;
+            std::cout << "-od Output subdirrectory. Directory where program will save output files." << std::endl;
+            std::cout << "-cp Config file path." << std::endl;
+        }
+    }
+    else
+        std::cout << "No arguments found. Reading from config" << std::endl;
+
     StartTimer();
-    ReadConfiguration();
+
+    if(!ReadConfiguration())
+    {
+        std::cout << "Bad configuration." << std::endl;
+        return 0;
+    }
+
+    if(sDefaultInPath.empty() || sDefaultInPath.empty())
+        std::cout << "Bad input or output dirrectory." << std::endl;
 
     //TODO: Delete report if already exists
     if(bEnableLogging) logFile.open("DiffAndCopyReport.txt", std::ios_base::out | std::ios_base::app);
@@ -277,6 +350,13 @@ int main(int argc, const char * argv[])
 
     std::cout << "Checking difference..." << std::endl;
     fs::path curPath = fs::path(sDefaultInPath + "\\" + sRefDir + "\\" + sTargetSubDir);
+
+    if(!fs::exists(curPath))
+    {
+        std::cout << "Input path not found." << std::endl;
+        return 0;
+    }
+
     if(bEnableProgressBar) filesCount =  GetNumOfFilesInDirrectory(curPath) * inputLocals.size();
     ReadDirrectory(curPath);
 

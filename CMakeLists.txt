@@ -23,4 +23,15 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/json11/)
 file(GLOB CPP_FILES *.cpp *.c *.hpp)
 add_executable(DiffAndCopy ${CPP_FILES})
 
+#if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+target_compile_definitions(DiffAndCopy PUBLIC -DDebug=1)
+message("Debug configuration. #define DEBUG")
+set_target_properties(
+    DiffAndCopy
+    PROPERTIES
+    COMPILE_DEFINITIONS DEBUG=1
+    COMPILE_DEFINITIONS TESTS=1
+   )
+#endif()
+
 target_link_libraries(DiffAndCopy json11 --coverage)
