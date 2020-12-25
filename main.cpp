@@ -138,28 +138,9 @@ node GetFileParams(const fs::path entry)
     newNode.fname = entry.filename().string();
     newNode.dpath = newNode.fpath.parent_path();
 
-    if(entry.extension() == ".png")
-    {
-        fsCurFile.open(newNode.fpath, std::ios_base::in | std::ios_base::binary | std::ios::ate);
-
-        if(fsCurFile)
-        {
-            char* pngdata = 0;
-            size_t pngsize = fsCurFile.tellg();
-
-            pngdata = new char[pngsize + 1];
-            fsCurFile.read(pngdata, pngsize);
-            newNode.fhash = sha256(pngdata);
-            delete [] pngdata;
-        }
-        fsCurFile.close();
-    }
-    else
-    {
-        fsCurFile.open(newNode.fpath);
-        newNode.fhash = sha256(std::string((std::istreambuf_iterator<char>(fsCurFile)), std::istreambuf_iterator<char>()));
-        fsCurFile.close();
-    }
+    fsCurFile.open(newNode.fpath, std::ios_base::in | std::ios_base::binary);
+    newNode.fhash = sha256(std::string((std::istreambuf_iterator<char>(fsCurFile)), std::istreambuf_iterator<char>()));
+    fsCurFile.close();
     
     return newNode;
 }
