@@ -21,17 +21,17 @@ namespace fs = std::filesystem;
 #define VERSION "version 2.0"
 
 //TODO: Load this data from .ini
-std::string sDefaultInPath = "";
-std::string sDefaultOutpPath = "";
+std::wstring sDefaultInPath;
+std::wstring sDefaultOutpPath;
 
-std::string sRefDir = "";
-std::string sTargetSubDir = "";
-std::string sOutSubDir = "";
+std::wstring sRefDir;
+std::wstring sTargetSubDir;
+std::wstring sOutSubDir;
 
-std::string sConfigPath = "config.json";
+std::wstring sConfigPath = L"config.json";
 
-std::vector<std::string> inputLocals = { "RU", "CS", "DE", "FR", "NL", "JP" };
-std::vector<std::string> outputLocals = { "data_ru", "data_cs", "data_de", "data_fr", "data_nl", "data_jp" };
+std::vector<std::wstring> inputLocals = { L"RU", L"CS", L"DE", L"FR", L"NL", L"JP" };
+std::vector<std::wstring> outputLocals = { L"data_ru", L"data_cs", L"data_de", L"data_fr", L"data_nl", L"data_jp" };
 
 bool bEnableLogging = true;
 bool bEnableProgressBar = false;
@@ -42,8 +42,8 @@ std::chrono::steady_clock::time_point prvTime;
 typedef struct {
     fs::path fpath;
     fs::path dpath;
-    std::string fname;
-    std::string fhash;
+    std::wstring fname;
+    std::wstring fhash;
     size_t fSize;
 } node;
 
@@ -55,6 +55,8 @@ std::ofstream logFile;
 size_t filesCount = 0;
 size_t filesPassed = 0;
 size_t diffCounter = 0;
+
+std::hash<std::wstring> hasher;
 
 //Walk dirrectory
 //Parallelize all dirrectory reading
@@ -74,18 +76,23 @@ size_t diffCounter = 0;
 /*******************************************************************************************/
 /*****************************************UTILS*********************************************/
 /*******************************************************************************************/
-std::string getCmdOption(char ** begin, char ** end, const std::string & option)
+std::wstring getCmdOption(wchar_t ** begin, wchar_t ** end, const std::wstring & option)
 {
-    char ** itr = std::find(begin, end, option);
+    wchar_t ** itr = std::find(begin, end, option);
     if (itr != end && ++itr != end)
     {
-        return std::string(*itr);
+        return std::wstring(*itr);
     }
     return 0;
 }
 
+std::wstring strToWstr(std::string inStr)
+{
+    return std::wstring(inStr.begin(), inStr.end());
+}
+
 /*******************************************************************************************/
-bool cmdOptionExists(char** begin, char** end, const std::string& option)
+bool cmdOptionExists(wchar_t** begin, wchar_t** end, const std::wstring& option)
 {
     return std::find(begin, end, option) != end;
 }
@@ -119,7 +126,7 @@ double StopTimer()
 }
 
 /*******************************************************************************************/
-bool startWith(std::string const & srString, std::string const & srStartString)
+bool startWith(std::wstring const & srString, std::wstring const & srStartString)
 {
     if( srString.length() >= srStartString.length() )
         return (0 == srString.compare(0, srStartString.length(), srStartString));
@@ -135,26 +142,26 @@ node GetFileParams(const fs::path entry)
     node newNode;
     std::ifstream fsCurFile;
     newNode.fpath = entry;
-    newNode.fname = entry.filename().string();
+    newNode.fname = entry.filename().wstring();
     newNode.dpath = newNode.fpath.parent_path();
 
     fsCurFile.open(newNode.fpath, std::ios_base::in | std::ios_base::binary);
-    newNode.fhash = sha256(std::string((std::istreambuf_iterator<char>(fsCurFile)), std::istreambuf_iterator<char>()));
+    newNode.fhash = hasher(std::wstring((std::istreambuf_iterator<wchar_t>(fsCurFile)), std::istreambuf_iterator<wchar_t>()));
     fsCurFile.close();
     
     return newNode;
 }
 
 /*******************************************************************************************/
-void CheckDiffAndCopy(std::string rHash, std::string sTarget, std::string inLoc, std::string outLoc)
+void CheckDiffAndCopy(std::wstring rHash, std::wstring sTarget, std::wstring inLoc, std::wstring outLoc)
 {
     node nTarget = GetFileParams(fs::path(sTarget));
     if(rHash != nTarget.fhash)
     {
         
-        std::string outPath = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + outLoc + "\\" + sTargetSubDir;
-        std::string outPathPrefix = sDefaultInPath + "\\" + inLoc + "\\" + sTargetSubDir;
-        std::string sRealFolderPath = outPath + nTarget.dpath.string().erase(0, outPathPrefix.size());
+        std::wstring outPath = sDefaultOutpPath + L"\\" + sOutSubDir + L"\\" + outLoc + L"\\" + sTargetSubDir;
+        std::wstring outPathPrefix = sDefaultInPath + L"\\" + inLoc + L"\\" + sTargetSubDir;
+        std::wstring sRealFolderPath = outPath + nTarget.dpath.wstring().erase(0, outPathPrefix.size());
         fs::path realFolderPath = fs::path(sRealFolderPath);
 
         //mReadProtect.lock();
@@ -190,9 +197,9 @@ void ReadDirrectory(fs::path srSearchPath)
             node nReference = GetFileParams(entry.path());
             for(size_t i = 0; i < inputLocals.size(); i++)
             {
-                std::string sCurPath = entry.path().string();
-                std::string sForReplace = "\\" + inputLocals[i] + "\\";
-                std::string sSubstr = std::string("\\" + sRefDir + "\\");
+                std::wstring sCurPath = entry.path().wstring();
+                std::wstring sForReplace = L"\\" + inputLocals[i] + L"\\";
+                std::wstring sSubstr = std::wstring(L"\\" + sRefDir + L"\\");
                 sCurPath.replace(sCurPath.find(sSubstr), sSubstr.length(), sForReplace);
                 fs::path pCurPath = fs::path(sCurPath);
                 if(bEnableProgressBar) filesPassed++;
@@ -206,11 +213,11 @@ void ReadDirrectory(fs::path srSearchPath)
 }
 
 /*******************************************************************************************/
-void CheckInputPaths(std::vector<std::string> * inputsCheck, std::vector<std::string> * outputsCheck)
+void CheckInputPaths(std::vector<std::wstring> * inputsCheck, std::vector<std::wstring> * outputsCheck)
 {
     for(size_t i = 0; i < inputsCheck->size(); i++)
     {
-        fs::path curPath = fs::path(sDefaultInPath + "\\" + inputsCheck->at(i) + "\\" + sTargetSubDir);
+        fs::path curPath = fs::path(sDefaultInPath + L"\\" + inputsCheck->at(i) + L"\\" + sTargetSubDir);
         if(!fs::exists(curPath))
         {
             inputsCheck->erase(inputsCheck->begin() + i);
@@ -237,27 +244,30 @@ bool ReadConfiguration()
         if(!json.is_null())
         {
             if(sDefaultInPath.empty())
-                sDefaultInPath = json["default_input_path"].string_value();
+                sDefaultInPath = strToWstr(json["default_input_path"].string_value());
+
             if(sDefaultOutpPath.empty())
-                sDefaultOutpPath = json["default_output_path"].string_value();
+                sDefaultOutpPath = strToWstr(json["default_output_path"].string_value());
             
             if(sRefDir.empty())
-                sRefDir = json["reference_dirrectory"].string_value();
+                sRefDir = strToWstr(json["reference_dirrectory"].string_value());
+            
             if(sTargetSubDir.empty())
-                sTargetSubDir = json["target_subdirrectory"].string_value();
+                sTargetSubDir = strToWstr(json["target_subdirrectory"].string_value());
+                
             if(sOutSubDir.empty())
-                sOutSubDir = json["output_subdirrectory"].string_value();
+                sOutSubDir = strToWstr(json["output_subdirrectory"].string_value());
 
             inputLocals.clear();
             for(auto &it : json["input_locals"].array_items())
             {
-                inputLocals.push_back(it.string_value());
+                inputLocals.push_back(strToWstr(it.string_value()));
             }
 
             outputLocals.clear();
             for(auto &it : json["output_locals"].array_items())
             {
-                outputLocals.push_back(it.string_value());
+                outputLocals.push_back(strToWstr(it.string_value()));
             }
 
             bEnableLogging = json["enable_logging"].bool_value();
@@ -278,29 +288,29 @@ size_t GetNumOfFilesInDirrectory(std::filesystem::path path)
 }
 
 /*******************************************************************************************/
-int main(int argc, char * argv[])
+int main(int argc, wchar_t * argv[])
 {
     if(argc > 1)
     {
-        if(cmdOptionExists(argv, argv+argc, "-i"))
-            sDefaultInPath = getCmdOption(argv, argv+argc, "-i");
+        if(cmdOptionExists(argv, argv+argc, L"-i"))
+            sDefaultInPath = getCmdOption(argv, argv+argc, L"-i");
 
-        if(cmdOptionExists(argv, argv+argc, "-o"))
-            sDefaultOutpPath = getCmdOption(argv, argv+argc, "-o");
+        if(cmdOptionExists(argv, argv+argc, L"-o"))
+            sDefaultOutpPath = getCmdOption(argv, argv+argc, L"-o");
 
-        if(cmdOptionExists(argv, argv+argc, "-rd"))
-            sRefDir = getCmdOption(argv, argv+argc, "-rd");
+        if(cmdOptionExists(argv, argv+argc, L"-rd"))
+            sRefDir = getCmdOption(argv, argv+argc, L"-rd");
 
-        if(cmdOptionExists(argv, argv+argc, "-sd"))
-            sTargetSubDir = getCmdOption(argv, argv+argc, "-sd");
+        if(cmdOptionExists(argv, argv+argc, L"-sd"))
+            sTargetSubDir = getCmdOption(argv, argv+argc, L"-sd");
 
-        if(cmdOptionExists(argv, argv+argc, "-od"))
-            sOutSubDir = getCmdOption(argv, argv+argc, "-od");
+        if(cmdOptionExists(argv, argv+argc, L"-od"))
+            sOutSubDir = getCmdOption(argv, argv+argc, L"-od");
 
-        if(cmdOptionExists(argv, argv+argc, "-cp"))
-            sConfigPath = getCmdOption(argv, argv+argc, "-cp");
+        if(cmdOptionExists(argv, argv+argc, L"-cp"))
+            sConfigPath = getCmdOption(argv, argv+argc, L"-cp");
         
-        if(cmdOptionExists(argv, argv+argc, "-h"))
+        if(cmdOptionExists(argv, argv+argc, L"-h"))
         {
             std::cout << "-i Input dirrectory path." << std::endl;
             std::cout << "-o Output dirrectory path." << std::endl;
@@ -330,7 +340,7 @@ int main(int argc, char * argv[])
     CheckInputPaths(&inputLocals, &outputLocals);
 
     std::cout << "Checking difference..." << std::endl;
-    fs::path curPath = fs::path(sDefaultInPath + "\\" + sRefDir + "\\" + sTargetSubDir);
+    fs::path curPath = fs::path(sDefaultInPath + L"\\" + sRefDir + L"\\" + sTargetSubDir);
 
     if(!fs::exists(curPath))
     {
@@ -350,7 +360,7 @@ int main(int argc, char * argv[])
 
     //TODO: Check is already exists
     std::cout << std::endl << "Copying EN folder." << std::endl;
-    std::string referenceOut = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir;
+    std::wstring referenceOut = sDefaultOutpPath + L"\\" + sOutSubDir + L"\\" + sTargetSubDir;
     fs::create_directories(referenceOut);
     fs::copy(curPath, referenceOut, std::filesystem::copy_options::recursive);
     std::cout << "Operation time: " << StopTimer() << "s" << std::endl;
