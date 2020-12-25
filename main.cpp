@@ -1,13 +1,17 @@
+#include <iostream>
+#include <iomanip>
 #include <string>
 #include <vector>
-#include <iostream>
+#include <algorithm>
+
 #include <chrono>
+
 #include <filesystem>
 #include <fstream>
-#include <algorithm>
+#include <sstream>
+
 #include <thread>
 #include <mutex>
-#include "sha256.h"
 
 #include "json11/json11.hpp"
 //Json parser lib: https://github.com/dropbox/json11
@@ -43,7 +47,7 @@ typedef struct {
     fs::path fpath;
     fs::path dpath;
     std::wstring fname;
-    std::wstring fhash;
+    std::string fhash;
     size_t fSize;
 } node;
 
@@ -55,8 +59,6 @@ std::ofstream logFile;
 size_t filesCount = 0;
 size_t filesPassed = 0;
 size_t diffCounter = 0;
-
-std::hash<std::wstring> hasher;
 
 //Walk dirrectory
 //Parallelize all dirrectory reading
@@ -89,6 +91,11 @@ std::wstring getCmdOption(wchar_t ** begin, wchar_t ** end, const std::wstring &
 std::wstring strToWstr(std::string inStr)
 {
     return std::wstring(inStr.begin(), inStr.end());
+}
+
+std::string GetHexDigest(std::wstring inpString)
+{
+    return std::string("nop");
 }
 
 /*******************************************************************************************/
@@ -140,20 +147,21 @@ bool startWith(std::wstring const & srString, std::wstring const & srStartString
 node GetFileParams(const fs::path entry)
 {
     node newNode;
-    std::ifstream fsCurFile;
+    std::wifstream fsCurFile;
     newNode.fpath = entry;
     newNode.fname = entry.filename().wstring();
     newNode.dpath = newNode.fpath.parent_path();
 
     fsCurFile.open(newNode.fpath, std::ios_base::in | std::ios_base::binary);
-    newNode.fhash = hasher(std::wstring((std::istreambuf_iterator<wchar_t>(fsCurFile)), std::istreambuf_iterator<wchar_t>()));
+    std::wstring szwFileStr((std::istreambuf_iterator<wchar_t>(fsCurFile.rdbuf())),std::istreambuf_iterator<wchar_t>());
+    newNode.fhash = GetHexDigest(szwFileStr);
     fsCurFile.close();
     
     return newNode;
 }
 
 /*******************************************************************************************/
-void CheckDiffAndCopy(std::wstring rHash, std::wstring sTarget, std::wstring inLoc, std::wstring outLoc)
+void CheckDiffAndCopy(std::string rHash, std::wstring sTarget, std::wstring inLoc, std::wstring outLoc)
 {
     node nTarget = GetFileParams(fs::path(sTarget));
     if(rHash != nTarget.fhash)
@@ -230,6 +238,8 @@ void CheckInputPaths(std::vector<std::wstring> * inputsCheck, std::vector<std::w
 bool ReadConfiguration()
 {
     std::ifstream jsonConfig;
+    #define Debug
+
     #ifdef Debug
     jsonConfig.open("..\\..\\config.json");
     #else
@@ -290,6 +300,8 @@ size_t GetNumOfFilesInDirrectory(std::filesystem::path path)
 /*******************************************************************************************/
 int main(int argc, wchar_t * argv[])
 {
+    //_setmode(_fileno(stdout), _O_U16TEXT);
+
     if(argc > 1)
     {
         if(cmdOptionExists(argv, argv+argc, L"-i"))
@@ -332,7 +344,7 @@ int main(int argc, wchar_t * argv[])
     }
 
     if(sDefaultInPath.empty() || sDefaultInPath.empty())
-        std::cout << "Bad input or output dirrectory." << std::endl;
+        std::wcout << L"Bad input or output dirrectory." << std::endl;
 
     //TODO: Delete report if already exists
     if(bEnableLogging) logFile.open("DiffAndCopyReport.txt", std::ios_base::out | std::ios_base::app);

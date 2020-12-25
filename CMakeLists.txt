@@ -17,6 +17,7 @@ else()
 	add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+#adding json11 library
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/json11/)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/json11/)
 
@@ -34,4 +35,4 @@ set_target_properties(
    )
 #endif()
 
-target_link_libraries(DiffAndCopy json11 --coverage)
+target_link_libraries(DiffAndCopy json11 cryptopp-shared --coverage)
