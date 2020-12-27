@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <locale>
 #include <vector>
 #include <algorithm>
 
@@ -12,6 +13,8 @@
 
 #include <thread>
 #include <mutex>
+
+#include <sha256.h>
 
 #include "json11/json11.hpp"
 //Json parser lib: https://github.com/dropbox/json11
@@ -145,7 +148,8 @@ node GetFileParams(const fs::path entry)
 
     fsCurFile.open(newNode.fpath, std::ios_base::in | std::ios_base::binary);
     std::wstring szwFileStr((std::istreambuf_iterator<wchar_t>(fsCurFile.rdbuf())),std::istreambuf_iterator<wchar_t>());
-    newNode.fhash = GetHexDigest(szwFileStr);
+    std::string converted(szwFileStr.begin(), szwFileStr.end());
+    newNode.fhash = sha256(converted);
     fsCurFile.close();
     
     return newNode;
@@ -291,7 +295,7 @@ size_t GetNumOfFilesInDirrectory(std::filesystem::path path)
 /*******************************************************************************************/
 int main(int argc, wchar_t * argv[])
 {
-    //_setmode(_fileno(stdout), _O_U16TEXT);
+    setlocale(LC_CTYPE, "");
 
     if(argc > 1)
     {

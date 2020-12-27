@@ -21,6 +21,9 @@ endif()
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/json11/)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/json11/)
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/hashlib/)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/hashlib/)
+
 file(GLOB CPP_FILES *.cpp *.c *.hpp)
 add_executable(DiffAndCopy ${CPP_FILES})
 
@@ -35,4 +38,4 @@ set_target_properties(
    )
 #endif()
 
-target_link_libraries(DiffAndCopy json11 cryptopp-shared --coverage)
+target_link_libraries(DiffAndCopy hashlib json11 --coverage)
