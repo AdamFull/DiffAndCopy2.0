@@ -133,15 +133,6 @@ double StopTimer()
 }
 
 /*******************************************************************************************/
-bool startWith(std::wstring const & srString, std::wstring const & srStartString)
-{
-    if( srString.length() >= srStartString.length() )
-        return (0 == srString.compare(0, srStartString.length(), srStartString));
-    else
-        return false;
-}
-
-/*******************************************************************************************/
 /***************************************File work*******************************************/
 /*******************************************************************************************/
 node GetFileParams(const fs::path entry)
