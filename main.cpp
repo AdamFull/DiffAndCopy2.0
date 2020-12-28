@@ -28,17 +28,17 @@ namespace fs = std::filesystem;
 #define VERSION "version 2.0"
 
 //TODO: Load this data from .ini
-std::wstring sDefaultInPath;
-std::wstring sDefaultOutpPath;
+std::string sDefaultInPath;
+std::string sDefaultOutpPath;
 
-std::wstring sRefDir;
-std::wstring sTargetSubDir;
-std::wstring sOutSubDir;
+std::string sRefDir;
+std::string sTargetSubDir;
+std::string sOutSubDir;
 
-std::wstring sConfigPath = L"config.json";
+std::string sConfigPath = "config.json";
 
-std::vector<std::wstring> inputLocals = { L"RU", L"CS", L"DE", L"FR", L"NL", L"JP" };
-std::vector<std::wstring> outputLocals = { L"data_ru", L"data_cs", L"data_de", L"data_fr", L"data_nl", L"data_jp" };
+std::vector<std::string> inputLocals = { "RU", "CS", "DE", "FR", "N", "JP" };
+std::vector<std::string> outputLocals = { "data_ru", "data_cs", "data_de", "data_fr", "data_n", "data_jp" };
 
 bool bEnableLogging = true;
 bool bEnableProgressBar = false;
@@ -49,7 +49,7 @@ std::chrono::steady_clock::time_point prvTime;
 typedef struct {
     fs::path fpath;
     fs::path dpath;
-    std::wstring fname;
+    std::string fname;
     std::string fhash;
     size_t fSize;
 } node;
@@ -81,28 +81,28 @@ size_t diffCounter = 0;
 /*******************************************************************************************/
 /*****************************************UTILS*********************************************/
 /*******************************************************************************************/
-std::wstring getCmdOption(wchar_t ** begin, wchar_t ** end, const std::wstring & option)
+std::string getCmdOption(char ** begin, char ** end, const std::string & option)
 {
-    wchar_t ** itr = std::find(begin, end, option);
+    char ** itr = std::find(begin, end, option);
     if (itr != end && ++itr != end)
     {
-        return std::wstring(*itr);
+        return std::string(*itr);
     }
     return 0;
 }
 
-std::wstring strToWstr(std::string inStr)
+std::string strToWstr(std::string inStr)
 {
-    return std::wstring(inStr.begin(), inStr.end());
+    return std::string(inStr.begin(), inStr.end());
 }
 
-std::string GetHexDigest(std::wstring inpString)
+std::string GetHexDigest(std::string inpString)
 {
     return std::string("nop");
 }
 
 /*******************************************************************************************/
-bool cmdOptionExists(wchar_t** begin, wchar_t** end, const std::wstring& option)
+bool cmdOptionExists(char** begin, char** end, const std::string& option)
 {
     return std::find(begin, end, option) != end;
 }
@@ -142,29 +142,36 @@ node GetFileParams(const fs::path entry)
 {
     node newNode;
     std::wifstream fsCurFile;
+    wchar_t *readed = 0;
+
     newNode.fpath = entry;
-    newNode.fname = entry.filename().wstring();
+    newNode.fname = entry.filename().string();
     newNode.dpath = newNode.fpath.parent_path();
 
-    fsCurFile.open(newNode.fpath, std::ios_base::in | std::ios_base::binary);
-    std::wstring szwFileStr((std::istreambuf_iterator<wchar_t>(fsCurFile.rdbuf())),std::istreambuf_iterator<wchar_t>());
-    std::string converted(szwFileStr.begin(), szwFileStr.end());
-    newNode.fhash = sha256(converted);
-    fsCurFile.close();
+    fsCurFile.open(newNode.fpath, std::ios::binary, std::ios::ate);
+    newNode.fSize = fsCurFile.tellg();
+    fsCurFile.seekg(0, std::ios::end);
     
+    readed = new wchar_t[newNode.fSize];
+    fsCurFile.read(readed, newNode.fSize);
+    //newNode.fhash = sha256(converted);
+    
+    fsCurFile.close();
+    delete [] readed;
+
     return newNode;
 }
 
 /*******************************************************************************************/
-void CheckDiffAndCopy(std::string rHash, std::wstring sTarget, std::wstring inLoc, std::wstring outLoc)
+void CheckDiffAndCopy(std::string rHash, std::string sTarget, std::string inLoc, std::string outLoc)
 {
     node nTarget = GetFileParams(fs::path(sTarget));
     if(rHash != nTarget.fhash)
     {
         
-        std::wstring outPath = sDefaultOutpPath + L"\\" + sOutSubDir + L"\\" + outLoc + L"\\" + sTargetSubDir;
-        std::wstring outPathPrefix = sDefaultInPath + L"\\" + inLoc + L"\\" + sTargetSubDir;
-        std::wstring sRealFolderPath = outPath + nTarget.dpath.wstring().erase(0, outPathPrefix.size());
+        std::string outPath = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + outLoc + "\\" + sTargetSubDir;
+        std::string outPathPrefix = sDefaultInPath + "\\" + inLoc + "\\" + sTargetSubDir;
+        std::string sRealFolderPath = outPath + nTarget.dpath.string().erase(0, outPathPrefix.size());
         fs::path realFolderPath = fs::path(sRealFolderPath);
 
         //mReadProtect.lock();
@@ -200,9 +207,9 @@ void ReadDirrectory(fs::path srSearchPath)
             node nReference = GetFileParams(entry.path());
             for(size_t i = 0; i < inputLocals.size(); i++)
             {
-                std::wstring sCurPath = entry.path().wstring();
-                std::wstring sForReplace = L"\\" + inputLocals[i] + L"\\";
-                std::wstring sSubstr = std::wstring(L"\\" + sRefDir + L"\\");
+                std::string sCurPath = entry.path().string();
+                std::string sForReplace = "\\" + inputLocals[i] + "\\";
+                std::string sSubstr = std::string("\\" + sRefDir + "\\");
                 sCurPath.replace(sCurPath.find(sSubstr), sSubstr.length(), sForReplace);
                 fs::path pCurPath = fs::path(sCurPath);
                 if(bEnableProgressBar) filesPassed++;
@@ -216,11 +223,11 @@ void ReadDirrectory(fs::path srSearchPath)
 }
 
 /*******************************************************************************************/
-void CheckInputPaths(std::vector<std::wstring> * inputsCheck, std::vector<std::wstring> * outputsCheck)
+void CheckInputPaths(std::vector<std::string> * inputsCheck, std::vector<std::string> * outputsCheck)
 {
     for(size_t i = 0; i < inputsCheck->size(); i++)
     {
-        fs::path curPath = fs::path(sDefaultInPath + L"\\" + inputsCheck->at(i) + L"\\" + sTargetSubDir);
+        fs::path curPath = fs::path(sDefaultInPath + "\\" + inputsCheck->at(i) + "\\" + sTargetSubDir);
         if(!fs::exists(curPath))
         {
             inputsCheck->erase(inputsCheck->begin() + i);
@@ -293,31 +300,29 @@ size_t GetNumOfFilesInDirrectory(std::filesystem::path path)
 }
 
 /*******************************************************************************************/
-int main(int argc, wchar_t * argv[])
+int main(int argc, char * argv[])
 {
-    setlocale(LC_CTYPE, "");
-
     if(argc > 1)
     {
-        if(cmdOptionExists(argv, argv+argc, L"-i"))
-            sDefaultInPath = getCmdOption(argv, argv+argc, L"-i");
+        if(cmdOptionExists(argv, argv+argc, "-i"))
+            sDefaultInPath = getCmdOption(argv, argv+argc, "-i");
 
-        if(cmdOptionExists(argv, argv+argc, L"-o"))
-            sDefaultOutpPath = getCmdOption(argv, argv+argc, L"-o");
+        if(cmdOptionExists(argv, argv+argc, "-o"))
+            sDefaultOutpPath = getCmdOption(argv, argv+argc, "-o");
 
-        if(cmdOptionExists(argv, argv+argc, L"-rd"))
-            sRefDir = getCmdOption(argv, argv+argc, L"-rd");
+        if(cmdOptionExists(argv, argv+argc, "-rd"))
+            sRefDir = getCmdOption(argv, argv+argc, "-rd");
 
-        if(cmdOptionExists(argv, argv+argc, L"-sd"))
-            sTargetSubDir = getCmdOption(argv, argv+argc, L"-sd");
+        if(cmdOptionExists(argv, argv+argc, "-sd"))
+            sTargetSubDir = getCmdOption(argv, argv+argc, "-sd");
 
-        if(cmdOptionExists(argv, argv+argc, L"-od"))
-            sOutSubDir = getCmdOption(argv, argv+argc, L"-od");
+        if(cmdOptionExists(argv, argv+argc, "-od"))
+            sOutSubDir = getCmdOption(argv, argv+argc, "-od");
 
-        if(cmdOptionExists(argv, argv+argc, L"-cp"))
-            sConfigPath = getCmdOption(argv, argv+argc, L"-cp");
+        if(cmdOptionExists(argv, argv+argc, "-cp"))
+            sConfigPath = getCmdOption(argv, argv+argc, "-cp");
         
-        if(cmdOptionExists(argv, argv+argc, L"-h"))
+        if(cmdOptionExists(argv, argv+argc, "-h"))
         {
             std::cout << "-i Input dirrectory path." << std::endl;
             std::cout << "-o Output dirrectory path." << std::endl;
@@ -339,7 +344,7 @@ int main(int argc, wchar_t * argv[])
     }
 
     if(sDefaultInPath.empty() || sDefaultInPath.empty())
-        std::wcout << L"Bad input or output dirrectory." << std::endl;
+        std::wcout << "Bad input or output dirrectory." << std::endl;
 
     //TODO: Delete report if already exists
     if(bEnableLogging) logFile.open("DiffAndCopyReport.txt", std::ios_base::out | std::ios_base::app);
@@ -347,7 +352,7 @@ int main(int argc, wchar_t * argv[])
     CheckInputPaths(&inputLocals, &outputLocals);
 
     std::cout << "Checking difference..." << std::endl;
-    fs::path curPath = fs::path(sDefaultInPath + L"\\" + sRefDir + L"\\" + sTargetSubDir);
+    fs::path curPath = fs::path(sDefaultInPath + "\\" + sRefDir + "\\" + sTargetSubDir);
 
     if(!fs::exists(curPath))
     {
@@ -367,7 +372,7 @@ int main(int argc, wchar_t * argv[])
 
     //TODO: Check is already exists
     std::cout << std::endl << "Copying EN folder." << std::endl;
-    std::wstring referenceOut = sDefaultOutpPath + L"\\" + sOutSubDir + L"\\" + sTargetSubDir;
+    std::string referenceOut = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir;
     fs::create_directories(referenceOut);
     fs::copy(curPath, referenceOut, std::filesystem::copy_options::recursive);
     std::cout << "Operation time: " << StopTimer() << "s" << std::endl;
