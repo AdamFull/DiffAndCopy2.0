@@ -91,15 +91,15 @@ std::string getCmdOption(char ** begin, char ** end, const std::string & option)
     return 0;
 }
 
-std::string strToWstr(std::string inStr)
+std::string strToWstr(const std::string& inStr)
 {
     return std::string(inStr.begin(), inStr.end());
 }
 
-std::string GetHexDigest(std::string inpString)
-{
-    return std::string("nop");
-}
+//std::string GetHexDigest(const std::string& inpString)
+//{
+//    return std::string("nop");
+//}
 
 /*******************************************************************************************/
 bool cmdOptionExists(char** begin, char** end, const std::string& option)
@@ -138,32 +138,32 @@ double StopTimer()
 /*******************************************************************************************/
 /***************************************File work*******************************************/
 /*******************************************************************************************/
-node GetFileParams(const fs::path entry)
+node GetFileParams(const fs::path& entry)
 {
     node newNode;
-    std::wifstream fsCurFile;
-    wchar_t *readed = 0;
+    //wchar_t *readed = 0;
 
     newNode.fpath = entry;
     newNode.fname = entry.filename().string();
     newNode.dpath = newNode.fpath.parent_path();
 
-    fsCurFile.open(newNode.fpath, std::ios::binary, std::ios::ate);
-    newNode.fSize = fsCurFile.tellg();
-    fsCurFile.seekg(0, std::ios::end);
+    //auto strTime(std::chrono::steady_clock::now());
+    std::ifstream fsCurFile(newNode.fpath, std::ios::binary | std::ios::in);
+
+    std::vector<char> buf(std::istream_iterator<char>{fsCurFile}, {});
+    char hash[128]{ 0 };
+    sha256_easy_hash_hex(buf.data(), buf.size(), hash);
+    newNode.fhash = hash;
+
+    //auto finTime(std::chrono::steady_clock::now());
+    //std::cout << "Time load file " << newNode.fpath << " = " << std::chrono::duration_cast<std::chrono::duration<double>>(finTime - strTime).count() << std::endl;
     
-    readed = new wchar_t[newNode.fSize];
-    fsCurFile.read(readed, newNode.fSize);
-    //newNode.fhash = sha256(converted);
-    
-    fsCurFile.close();
-    delete [] readed;
 
     return newNode;
 }
 
 /*******************************************************************************************/
-void CheckDiffAndCopy(std::string rHash, std::string sTarget, std::string inLoc, std::string outLoc)
+void CheckDiffAndCopy(const std::string& rHash, const std::string& sTarget, const std::string& inLoc, const std::string& outLoc)
 {
     node nTarget = GetFileParams(fs::path(sTarget));
     if(rHash != nTarget.fhash)
@@ -190,7 +190,7 @@ void CheckDiffAndCopy(std::string rHash, std::string sTarget, std::string inLoc,
 }
 
 /*******************************************************************************************/
-void ReadDirrectory(fs::path srSearchPath)
+void ReadDirrectory(const fs::path& srSearchPath)
 {
     for (const auto& entry : fs::directory_iterator(srSearchPath)) 
     {
@@ -223,15 +223,15 @@ void ReadDirrectory(fs::path srSearchPath)
 }
 
 /*******************************************************************************************/
-void CheckInputPaths(std::vector<std::string> * inputsCheck, std::vector<std::string> * outputsCheck)
+void CheckInputPaths(std::vector<std::string>& inputsCheck, std::vector<std::string>& outputsCheck)
 {
-    for(size_t i = 0; i < inputsCheck->size(); i++)
+    for(size_t i = 0; i < inputsCheck.size(); i++)
     {
-        fs::path curPath = fs::path(sDefaultInPath + "\\" + inputsCheck->at(i) + "\\" + sTargetSubDir);
+        fs::path curPath = fs::path(sDefaultInPath + "\\" + inputsCheck.at(i) + "\\" + sTargetSubDir);
         if(!fs::exists(curPath))
         {
-            inputsCheck->erase(inputsCheck->begin() + i);
-            outputsCheck->erase(outputsCheck->begin() + i);
+            inputsCheck.erase(inputsCheck.begin() + i);
+            outputsCheck.erase(outputsCheck.begin() + i);
         }
     }
 }
@@ -294,7 +294,7 @@ bool ReadConfiguration()
 }
 
 /*******************************************************************************************/
-size_t GetNumOfFilesInDirrectory(std::filesystem::path path)
+size_t GetNumOfFilesInDirrectory(const fs::path& path)
 {
     return (std::size_t)std::distance(fs::recursive_directory_iterator{path}, fs::recursive_directory_iterator{});
 }
@@ -349,7 +349,7 @@ int main(int argc, char * argv[])
     //TODO: Delete report if already exists
     if(bEnableLogging) logFile.open("DiffAndCopyReport.txt", std::ios_base::out | std::ios_base::app);
 
-    CheckInputPaths(&inputLocals, &outputLocals);
+    CheckInputPaths(inputLocals, outputLocals);
 
     std::cout << "Checking difference..." << std::endl;
     fs::path curPath = fs::path(sDefaultInPath + "\\" + sRefDir + "\\" + sTargetSubDir);
