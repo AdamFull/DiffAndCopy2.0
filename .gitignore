@@ -1,2 +1,9 @@
 .vscode/
 build/
+.vs/
+DiffAndCopyReport.txt
+diff_and_copy_2.sln
+diff_and_copy_2.vcxproj
+diff_and_copy_2.vcxproj.filters
+diff_and_copy_2.vcxproj.user
+output/
