@@ -1,21 +1,9 @@
 #include <iostream>
-#include <iomanip>
-#include <string>
-#include <locale>
-#include <vector>
-#include <algorithm>
-
-#include <chrono>
-
-#include <filesystem>
 #include <fstream>
-#include <sstream>
-
-#include <thread>
-#include <mutex>
 
 #include <sha256.h>
 
+#include "util.h"
 #include "json11/json11.hpp"
 //Json parser lib: https://github.com/dropbox/json11
 
@@ -23,17 +11,15 @@
 #define JSON11_ENABLE_DR1467_CANARY 0
 #endif
 
-namespace fs = std::filesystem;
-
 #define VERSION "version 2.0"
+
+extern std::vector<std::thread> vWorkerThreads;
 
 //TODO: Load this data from .ini
 std::string sDefaultInPath;
 std::string sDefaultOutpPath;
 
-std::string sRefDir;
-std::string sTargetSubDir;
-std::string sOutSubDir;
+std::string sRefDir, sTargetSubDir, sOutSubDir, sOptRes;
 
 std::string sConfigPath = "config.json";
 
@@ -45,8 +31,6 @@ bool bEnableLogging = true;
 bool bEnableProgressBar = false;
 bool bIgnoreFlv = false;
 
-std::chrono::steady_clock::time_point prvTime;
-
 typedef struct {
     fs::path fpath;
     fs::path dpath;
@@ -55,93 +39,12 @@ typedef struct {
     size_t fSize;
 } node;
 
-std::vector<std::thread> vWorkerThreads;
-std::mutex mReadProtect;
+extern std::ofstream logFile;
 
-std::ofstream logFile;
-
-size_t filesCount = 0;
-size_t filesPassed = 0;
-size_t diffCounter = 0;
-
-//Walk dirrectory
-//Parallelize all dirrectory reading
-    //If file
-        //Get path
-        //Get parent dir
-        //Get file name
-        //Get file hash
-        //Get file size
-    //Check file sizes
-    //If same
-    //Check file hashes
-    //If same, skip
-    //If files have difference save to folder
-//End
-
-/*******************************************************************************************/
-/*****************************************UTILS*********************************************/
-/*******************************************************************************************/
-std::string getCmdOption(char ** begin, char ** end, const std::string & option)
-{
-    char ** itr = std::find(begin, end, option);
-    if (itr != end && ++itr != end)
-    {
-        return std::string(*itr);
-    }
-    return 0;
-}
-
-std::string InLower(const std::string &inHigher)
-{
-    std::string strcopy(inHigher);
-    std::transform(strcopy.begin(), strcopy.end(), strcopy.begin(), [](unsigned char c){ return std::tolower(c); });
-    return strcopy;
-}
-
-std::string strToWstr(const std::string& inStr)
-{
-    return std::string(inStr.begin(), inStr.end());
-}
-
-//std::string GetHexDigest(const std::string& inpString)
-//{
-//    return std::string("nop");
-//}
-
-/*******************************************************************************************/
-bool cmdOptionExists(char** begin, char** end, const std::string& option)
-{
-    return std::find(begin, end, option) != end;
-}
-
-/*******************************************************************************************/
-void DrawProgressBar(size_t done, size_t all, size_t bar_width = 50)
-{
-    double progress = (double)done/(double)all;
-    std::cout << "[";
-    int pos = bar_width * progress;
-    for (int i = 0; i < bar_width; ++i) {
-        if (i < pos) std::cout << (char)219;
-        else if (i == pos) std::cout << (char)220;
-        else std::cout << " ";
-    }
-    std::cout << "] " << int(progress * 100.0) << " %\r";
-    std::cout.flush();
-}
-
-/*******************************************************************************************/
-void StartTimer()
-{
-    prvTime = std::chrono::steady_clock::now();
-}
-
-/*******************************************************************************************/
-double StopTimer()
-{
-    std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::duration<double> >(curTime - prvTime).count();
-}
+//Externals
+extern size_t filesCount;
+extern size_t filesPassed;
+extern size_t diffCounter;
 
 /*******************************************************************************************/
 /***************************************File work*******************************************/
@@ -265,30 +168,30 @@ bool ReadConfiguration()
         if(!json.is_null())
         {
             if(sDefaultInPath.empty())
-                sDefaultInPath = strToWstr(json["default_input_path"].string_value());
+                sDefaultInPath = json["default_input_path"].string_value();
 
             if(sDefaultOutpPath.empty())
-                sDefaultOutpPath = strToWstr(json["default_output_path"].string_value());
+                sDefaultOutpPath = json["default_output_path"].string_value();
             
             if(sRefDir.empty())
-                sRefDir = strToWstr(json["reference_dirrectory"].string_value());
+                sRefDir = json["reference_dirrectory"].string_value();
             
             if(sTargetSubDir.empty())
-                sTargetSubDir = strToWstr(json["target_subdirrectory"].string_value());
+                sTargetSubDir = json["target_subdirrectory"].string_value();
                 
             if(sOutSubDir.empty())
-                sOutSubDir = strToWstr(json["output_subdirrectory"].string_value());
+                sOutSubDir = json["output_subdirrectory"].string_value();
 
             inputLocals.clear();
             for(auto &it : json["input_locals"].array_items())
             {
-                inputLocals.push_back(strToWstr(it.string_value()));
+                inputLocals.push_back(it.string_value());
             }
 
             outputLocals.clear();
             for(auto &it : json["output_locals"].array_items())
             {
-                outputLocals.push_back(strToWstr(it.string_value()));
+                outputLocals.push_back(it.string_value());
             }
 
             bEnableLogging = json["enable_logging"].bool_value();
@@ -302,59 +205,8 @@ bool ReadConfiguration()
     return false;
 }
 
-void CopyRemove(const std::string& from, const std::string& to)
-{
-    if(fs::exists(to)) fs::remove(to);
-    fs::copy(from, to);
-}
-
-void RecursiveCopy(const std::string& from, const std::string& to, const std::string& prefix)
-{
-    for (const auto& entry : fs::directory_iterator(from)) 
-    {
-        const auto filenameStr = entry.path().filename().string();
-        if (entry.is_directory()) 
-        {
-            RecursiveCopy(entry.path().string(), to, prefix);
-            if(bEnableProgressBar) DrawProgressBar(filesPassed, filesCount);
-        }
-        else if (entry.is_regular_file())
-        {
-            if(bEnableProgressBar) filesPassed++;
-            if(entry.path().extension().string() == ".flv" && bIgnoreFlv)
-            {
-                if(bEnableLogging) logFile << "Flv file ignored: " << filenameStr << std::endl;
-            }
-            else
-            {
-                std::string sCurPath = entry.path().string();
-                std::string sRealFolderPath = to + entry.path().parent_path().string().erase(0, prefix.size());
-                std::string filepath = InLower(sRealFolderPath) + "\\" + InLower(entry.path().filename().string());
-                //TODO: make it parallel
-                fs::create_directories(InLower(sRealFolderPath));
-                vWorkerThreads.emplace_back(CopyRemove, entry.path().string(), filepath);
-            }
-        }
-        else
-            if(bEnableLogging) logFile << "Unknown file" << " [?]" << filenameStr << std::endl;
-    }
-}
-
-void JoinThreads()
-{
-    for(std::thread & th : vWorkerThreads)
-    {
-        if(th.joinable())
-            th.join();
-    }
-    vWorkerThreads.clear();
-}
-
 /*******************************************************************************************/
-size_t GetNumOfFilesInDirrectory(const fs::path& path)
-{
-    return (std::size_t)std::distance(fs::recursive_directory_iterator{path}, fs::recursive_directory_iterator{});
-}
+
 
 /*******************************************************************************************/
 int main(int argc, char * argv[])
@@ -437,7 +289,7 @@ int main(int argc, char * argv[])
         std::cout << std::endl << "Copying optimized." << std::endl;
         for (size_t i = 0; i < outputLocals.size(); i++)
         {
-            optres_path = sDefaultInPath + "\\" + "opt_res" + "\\" + outputLocals[i];
+            optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + outputLocals[i];
             outres_path = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + outputLocals.at(i);
             if(fs::exists(optres_path))
             {
@@ -454,7 +306,7 @@ int main(int argc, char * argv[])
         //for en local
         for (size_t i = 0; i < enLocVariants.size(); i++)
         {
-            optres_path = sDefaultInPath + "\\" + "opt_res" + "\\" + enLocVariants.at(i);
+            optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + enLocVariants.at(i);
             outres_path = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir;
             if(fs::exists(optres_path))
             {
@@ -469,7 +321,7 @@ int main(int argc, char * argv[])
         }
 
     }
-    std::cout << "Operation time: " << StopTimer() << "s" << std::endl;
+    std::cout << "Operation time: " << StopTimerInNormalTime() << std::endl;
     if(bEnableLogging) logFile.close();
 
     return 0;

@@ -32,12 +32,6 @@ set_target_properties(DiffAndCopy PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
 #if(CMAKE_BUILD_TYPE MATCHES DEBUG)
 target_compile_definitions(DiffAndCopy PUBLIC -DDebug=1)
 message("Debug configuration. #define DEBUG")
-set_target_properties(
-    DiffAndCopy
-    PROPERTIES
-    COMPILE_DEFINITIONS DEBUG=1
-    COMPILE_DEFINITIONS TESTS=1
-   )
 #endif()
 
 target_link_libraries(DiffAndCopy hashlib json11)
