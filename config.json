@@ -1,12 +1,13 @@
 {
-    "default_input_path": "E:\\svn\\game",
-    "default_output_path": "E:\\svn\\output",
+    "default_input_path": "E:\\MT8\\game",
+    "default_output_path": "E:\\MT8\\output",
+    "optimized_resources_subdir": "opt_res",
     "reference_dirrectory": "EN",
     "target_subdirrectory": "data",
     "output_subdirrectory": "res",
-    "input_locals": ["RU", "CS", "DE", "FR", "NL", "JP"],
-    "output_locals": ["data_ru", "data_cs", "data_de", "data_fr", "data_nl", "data_jp"],
+    "input_locals": ["RU", "CS", "CZ", "DE", "GER", "FR", "NL", "JP"],
+    "output_locals": ["data_ru", "data_cs", "data_cz", "data_de", "data_de", "data_fr", "data_nl", "data_jp"],
     "enable_logging": true,
-    "enable_progressbar": false,
-    "ignore_flv": false
+    "enable_progressbar": true,
+    "ignore_flv": true
 }

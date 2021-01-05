@@ -1,4 +1,4 @@
-file(GLOB hash_files *.cpp *.c *.hpp *.h)
-add_library(hash ${hash_files})
+file(GLOB hashlib_files *.cpp *.c *.hpp *.h)
+add_library(hashlib ${hashlib_files})
 
-add_library(hash-static STATIC ${hash_files})
+add_library(hashlib-static STATIC ${hashlib_files})

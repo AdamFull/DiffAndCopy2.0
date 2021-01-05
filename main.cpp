@@ -91,6 +91,13 @@ std::string getCmdOption(char ** begin, char ** end, const std::string & option)
     return 0;
 }
 
+std::string InLower(const std::string &inHigher)
+{
+    std::string strcopy(inHigher);
+    std::transform(strcopy.begin(), strcopy.end(), strcopy.begin(), [](unsigned char c){ return std::tolower(c); });
+    return strcopy;
+}
+
 std::string strToWstr(const std::string& inStr)
 {
     return std::string(inStr.begin(), inStr.end());
@@ -151,9 +158,9 @@ node GetFileParams(const fs::path& entry)
     std::ifstream fsCurFile(newNode.fpath, std::ios::binary | std::ios::in);
 
     std::vector<char> buf(std::istream_iterator<char>{fsCurFile}, {});
-    char hash[128]{ 0 };
-    sha256_easy_hash_hex(buf.data(), buf.size(), hash);
-    newNode.fhash = hash;
+    //char hash[128]{ 0 };
+    //sha256_easy_hash_hex(buf.data(), buf.size(), hash);
+    newNode.fhash = sha256(buf.data());
 
     //auto finTime(std::chrono::steady_clock::now());
     //std::cout << "Time load file " << newNode.fpath << " = " << std::chrono::duration_cast<std::chrono::duration<double>>(finTime - strTime).count() << std::endl;
@@ -177,8 +184,8 @@ void CheckDiffAndCopy(const std::string& rHash, const std::string& sTarget, cons
         //mReadProtect.lock();
         try
         {
-            fs::create_directories(realFolderPath);
-            fs::copy(nTarget.fpath, realFolderPath);
+            fs::create_directories(InLower(realFolderPath.string()));
+            fs::copy(nTarget.fpath, InLower(realFolderPath.string()) + "\\" + InLower(nTarget.fname));
             diffCounter++;
         }
         catch(...)
@@ -204,18 +211,26 @@ void ReadDirrectory(const fs::path& srSearchPath)
         }
         else if (entry.is_regular_file())
         {
-            node nReference = GetFileParams(entry.path());
-            for(size_t i = 0; i < inputLocals.size(); i++)
+            if(entry.path().extension().string() == ".flv" && bIgnoreFlv)
             {
-                std::string sCurPath = entry.path().string();
-                std::string sForReplace = "\\" + inputLocals[i] + "\\";
-                std::string sSubstr = std::string("\\" + sRefDir + "\\");
-                sCurPath.replace(sCurPath.find(sSubstr), sSubstr.length(), sForReplace);
-                fs::path pCurPath = fs::path(sCurPath);
-                if(bEnableProgressBar) filesPassed++;
-                if(fs::exists(pCurPath))
-                    vWorkerThreads.emplace_back(CheckDiffAndCopy, nReference.fhash, sCurPath, inputLocals.at(i), outputLocals.at(i));
+                if(bEnableLogging) logFile << "Flv file ignored: " << filenameStr << std::endl;
             }
+            else
+            {
+                node nReference = GetFileParams(entry.path());
+                for(size_t i = 0; i < inputLocals.size(); i++)
+                {
+                    std::string sCurPath = entry.path().string();
+                    std::string sForReplace = "\\" + inputLocals[i] + "\\";
+                    std::string sSubstr = std::string("\\" + sRefDir + "\\");
+                    sCurPath.replace(sCurPath.find(sSubstr), sSubstr.length(), sForReplace);
+                    fs::path pCurPath = fs::path(sCurPath);
+                    if(bEnableProgressBar) filesPassed++;
+                    if(fs::exists(pCurPath))
+                        vWorkerThreads.emplace_back(CheckDiffAndCopy, nReference.fhash, sCurPath, inputLocals.at(i), outputLocals.at(i));
+                }
+            }
+            
         }
         else
             if(bEnableLogging) logFile << "Unknown file" << " [?]" << filenameStr << std::endl;
@@ -291,6 +306,38 @@ bool ReadConfiguration()
         }
     }
     return false;
+}
+
+void RecursiveCopy(const std::string& from, const std::string& to)
+{
+    for (const auto& entry : fs::directory_iterator(from)) 
+    {
+        const auto filenameStr = entry.path().filename().string();
+        if (entry.is_directory()) 
+        {
+            RecursiveCopy(entry.path().string(), to);
+            if(bEnableProgressBar) DrawProgressBar(filesPassed, filesCount);
+        }
+        else if (entry.is_regular_file())
+        {
+            if(entry.path().extension().string() == ".flv" && bIgnoreFlv)
+            {
+                if(bEnableLogging) logFile << "Flv file ignored: " << filenameStr << std::endl;
+            }
+            else
+            {
+                std::string sCurPath = entry.path().string();
+                std::string outPath = sDefaultOutpPath + "\\" + sOutSubDir + "\\";
+                std::string outPathPrefix = sDefaultInPath + "\\EN\\" + sTargetSubDir;
+                std::string sRealFolderPath = outPath + entry.path().parent_path().string().erase(0, outPathPrefix.size());
+
+                fs::create_directories(InLower(sRealFolderPath));
+                fs::copy(entry.path(), InLower(sRealFolderPath) + "\\" + InLower(entry.path().filename().string()));
+            }
+        }
+        else
+            if(bEnableLogging) logFile << "Unknown file" << " [?]" << filenameStr << std::endl;
+    }
 }
 
 /*******************************************************************************************/
@@ -372,9 +419,26 @@ int main(int argc, char * argv[])
 
     //TODO: Check is already exists
     std::cout << std::endl << "Copying EN folder." << std::endl;
-    std::string referenceOut = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir;
-    fs::create_directories(referenceOut);
-    fs::copy(curPath, referenceOut, std::filesystem::copy_options::recursive);
+    std::string referenceOut = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir + "\\";
+    fs::create_directories(InLower(referenceOut));
+    RecursiveCopy(curPath.string(), InLower(referenceOut));
+
+    if(bIgnoreFlv)
+    { 
+        std::cout << std::endl << "Copying optimized." << std::endl;
+        for (size_t i = 0; i < outputLocals.size(); i++)
+        {
+            std::string optres_path = sDefaultInPath + "\\" + sOutSubDir + "\\" + "opt_res";
+            optres_path = optres_path + "\\" + outputLocals[i];
+            std::string outres_path = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + outputLocals.at(i);
+            if(fs::exists(optres_path))
+            {
+                fs::create_directories(InLower(outres_path));
+                RecursiveCopy(optres_path, InLower(outres_path));
+            }
+        }
+
+    }
     std::cout << "Operation time: " << StopTimer() << "s" << std::endl;
     if(bEnableLogging) logFile.close();
 
