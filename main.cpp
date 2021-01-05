@@ -458,6 +458,10 @@ int main(int argc, char * argv[])
             outres_path = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir;
             if(fs::exists(optres_path))
             {
+                if(enLocVariants.at(i) == "data")
+                {
+                    outres_path = outres_path.erase(outres_path.size() - enLocVariants.at(i).size(), outres_path.size());
+                }
                 RecursiveCopy(optres_path, InLower(outres_path), optres_path);
                 JoinThreads();
                 break;
