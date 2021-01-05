@@ -372,6 +372,7 @@ int main(int argc, char * argv[])
 
     //TODO: Check is already exists
     std::cout << std::endl << "Copying EN folder." << std::endl;
+    StartTimer();
     std::string referenceOut = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir;
     fs::create_directories(referenceOut);
     fs::copy(curPath, referenceOut, std::filesystem::copy_options::recursive);
