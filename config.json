@@ -7,6 +7,7 @@
     "output_subdirrectory": "res",
     "input_locals": ["RU", "CS", "CZ", "DE", "GER", "FR", "NL", "JP"],
     "output_locals": ["data_ru", "data_cs", "data_cz", "data_de", "data_de", "data_fr", "data_nl", "data_jp"],
+    "locals": { "RU": "data_ru", "CS": "data_cs", "CZ": "data_cz", "DE": "data_de", "GER": "data_de", "FR": "data_fr", "NL": "data_nl", "JP"},
     "packet_default_name": "main.%s.dominigames.%s",
     "packet_version": 1,
     "game_name": "ex2.free2play",
