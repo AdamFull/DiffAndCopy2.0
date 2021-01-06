@@ -182,6 +182,8 @@ bool ReadConfiguration()
             if(sOutSubDir.empty())
                 sOutSubDir = json["output_subdirrectory"].string_value();
 
+            sOptRes = json["optimized_resources_subdir"].string_value();
+
             inputLocals.clear();
             for(auto &it : json["input_locals"].array_items())
             {
@@ -270,7 +272,7 @@ int main(int argc, char * argv[])
     }
 
     if(bEnableProgressBar) filesCount =  GetNumOfFilesInDirrectory(curPath);
-    ReadDirrectory(curPath);
+    /*ReadDirrectory(curPath);
 
     JoinThreads();
 
@@ -280,7 +282,7 @@ int main(int argc, char * argv[])
     filesPassed = 0;
     fs::create_directories(InLower(referenceOut));
     RecursiveCopy(curPath.string(), InLower(referenceOut), curPath.string());
-    JoinThreads();
+    JoinThreads();*/
 
     if(bIgnoreFlv)
     { 
@@ -307,7 +309,7 @@ int main(int argc, char * argv[])
         for (size_t i = 0; i < enLocVariants.size(); i++)
         {
             optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + enLocVariants.at(i);
-            outres_path = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir;
+            outres_path = sDefaultOutpPath + "\\" + sOutSubDir;
             if(fs::exists(optres_path))
             {
                 if(enLocVariants.at(i) == "data")
