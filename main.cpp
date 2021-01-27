@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <ctime>
 
 #include <sha256.h>
 
@@ -23,13 +24,20 @@ std::string sRefDir, sTargetSubDir, sOutSubDir, sOptRes;
 
 std::string sConfigPath = "config.json";
 
-std::vector<std::string> inputLocals = { "RU", "CS", "DE", "FR", "N", "JP" };
-std::vector<std::string> outputLocals = { "data_ru", "data_cs", "data_de", "data_fr", "data_n", "data_jp" };
+std::vector<std::string> inputLocals;
+std::vector<std::string> outputLocals;
 std::vector<std::string> enLocVariants = {"data", "data_en"};
+
+//Костыли из за "умных" людей, которым насрать на других
+std::vector<std::string> english_variants;
+std::vector<std::string> сzech_variants;
+std::vector<std::string> german_variants;
+
+std::vector<std::string> processed_locals;
 
 bool bEnableLogging = true;
 bool bEnableProgressBar = false;
-bool bIgnoreFlv = false;
+bool bUseOptRes = false;
 
 typedef struct {
     fs::path fpath;
@@ -45,6 +53,7 @@ extern std::ofstream logFile;
 extern size_t filesCount;
 extern size_t filesPassed;
 extern size_t diffCounter;
+extern size_t errorCounter;
 
 /*******************************************************************************************/
 /***************************************File work*******************************************/
@@ -82,12 +91,13 @@ void CheckDiffAndCopy(const std::string& rHash, const std::string& sTarget, cons
         try
         {
             fs::create_directories(InLower(realFolderPath.string()));
-            fs::copy(nTarget.fpath, InLower(realFolderPath.string()) + "\\" + InLower(nTarget.fname));
+            CopyRemove(nTarget.fpath.string(), InLower(realFolderPath.string()) + "\\" + InLower(nTarget.fname));
             diffCounter++;
         }
-        catch(...)
+        catch(std::exception e)
         {
-            if(bEnableLogging) logFile << "Error: " << "can't write file" << std::endl;
+            if(bEnableLogging) logFile << "Error: " << e.what() << std::endl;
+            errorCounter++;
         }
         //mReadProtect.unlock();
     }
@@ -98,20 +108,19 @@ void ReadDirrectory(const fs::path& srSearchPath)
 {
     for (const auto& entry : fs::directory_iterator(srSearchPath)) 
     {
-        const auto filenameStr = entry.path().filename().string();
         if (entry.is_directory()) 
         {
-            if(bEnableLogging) logFile << "In folder " << entry.path().string() << " found " << diffCounter << " diffs" << std::endl;
+            if(bEnableLogging) logFile << "INFO: " << "In folder " << entry.path().string() << " found " << diffCounter << " diffs" << std::endl;
             diffCounter = 0;
-            ReadDirrectory(entry);
             if(bEnableProgressBar) DrawProgressBar(filesPassed, filesCount);
+            ReadDirrectory(entry);
         }
         else if (entry.is_regular_file())
         {
             if(bEnableProgressBar) filesPassed++;
-            if(entry.path().extension().string() == ".flv" && bIgnoreFlv)
+            if(entry.path().extension().string() == ".flv" && bUseOptRes)
             {
-                if(bEnableLogging) logFile << "Flv file ignored: " << filenameStr << std::endl;
+                if(bEnableLogging) logFile << "INFO: " << "Flv file ignored: " << entry.path() << std::endl;
             }
             else
             {
@@ -130,7 +139,7 @@ void ReadDirrectory(const fs::path& srSearchPath)
             
         }
         else
-            if(bEnableLogging) logFile << "Unknown file" << " [?]" << filenameStr << std::endl;
+            if(bEnableLogging) logFile << "INFO: " << "Unknown file" << " [?]" << entry.path() << std::endl;
     }
 }
 
@@ -152,13 +161,13 @@ void CheckInputPaths(std::vector<std::string>& inputsCheck, std::vector<std::str
 bool ReadConfiguration()
 {
     std::ifstream jsonConfig;
-    #define Debug
+    //#define Debug
 
-    #ifdef Debug
+    /*#ifdef Debug
     jsonConfig.open("..\\..\\config.json");
-    #else
+    #else*/
     jsonConfig.open(sConfigPath);
-    #endif
+    //#endif
 
     if(jsonConfig)
     {
@@ -196,9 +205,22 @@ bool ReadConfiguration()
                 outputLocals.push_back(it.string_value());
             }
 
+            for(auto &it : json["english_variants"].array_items())
+            {
+                english_variants.push_back(it.string_value());
+            }
+            for(auto &it : json["сzech_variants"].array_items())
+            {
+                сzech_variants.push_back(it.string_value());
+            }
+            for(auto &it : json["german_variants"].array_items())
+            {
+                german_variants.push_back(it.string_value());
+            }
+
             bEnableLogging = json["enable_logging"].bool_value();
             bEnableProgressBar = json["enable_progressbar"].bool_value();
-            bIgnoreFlv = json["ignore_flv"].bool_value();
+            bUseOptRes = json["use_optimized_resources"].bool_value();
             
             jsonConfig.close();
             return true;
@@ -255,10 +277,29 @@ int main(int argc, char * argv[])
     }
 
     if(sDefaultInPath.empty() || sDefaultInPath.empty())
-        std::wcout << "Bad input or output dirrectory." << std::endl;
+        std::cout << "Bad input or output dirrectory." << std::endl;
 
-    //TODO: Delete report if already exists
-    if(bEnableLogging) logFile.open("DiffAndCopyReport.txt", std::ios_base::out | std::ios_base::app);
+    if(bEnableLogging)
+    {
+        time_t rawtime;
+        struct tm * timeinfo;
+
+        std::string report = "log/DiffAndCopyReport_%s.txt";
+        std::string report_time;
+        std::string report_name;
+
+        time(&rawtime);
+        timeinfo = localtime(&rawtime);
+        report_time.resize(20);
+        strftime(report_time.data(),report_time.size(),"%d-%m-%Y_%H.%M.%S",timeinfo);
+
+        size_t report_size = report.size() + report_time.size() - 2;
+        report_name.resize(report_size);
+        sprintf(report_name.data(), report.c_str(), report_time.c_str());
+        report_name.pop_back();
+        if(!fs::exists("log/")) fs::create_directory("log/");
+        logFile.open(report_name, std::fstream::out | std::fstream::binary);
+    } 
 
     CheckInputPaths(inputLocals, outputLocals);
 
@@ -272,7 +313,7 @@ int main(int argc, char * argv[])
     }
 
     if(bEnableProgressBar) filesCount =  GetNumOfFilesInDirrectory(curPath);
-    /*ReadDirrectory(curPath);
+    ReadDirrectory(curPath);
 
     JoinThreads();
 
@@ -282,48 +323,77 @@ int main(int argc, char * argv[])
     filesPassed = 0;
     fs::create_directories(InLower(referenceOut));
     RecursiveCopy(curPath.string(), InLower(referenceOut), curPath.string());
-    JoinThreads();*/
+    JoinThreads();
 
-    if(bIgnoreFlv)
+    if(bUseOptRes)
     { 
+        filesPassed = 0;
         std::string optres_path;
         std::string outres_path;
         std::cout << std::endl << "Copying optimized." << std::endl;
         for (size_t i = 0; i < outputLocals.size(); i++)
         {
-            optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + outputLocals[i];
+            if(std::find(processed_locals.begin(), processed_locals.end(), outputLocals.at(i)) != processed_locals.end()) continue;
+            if(outputLocals.at(i) == "data_cz")
+            {
+                for(std::vector<std::string>::iterator it = сzech_variants.begin(); it != сzech_variants.end(); ++it)
+                {
+                    optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + *it;
+                    if(fs::exists(optres_path)) break;
+                }
+            }
+            else if(outputLocals.at(i) == "data_gr")
+            {
+                for(std::vector<std::string>::iterator it = german_variants.begin(); it != german_variants.end(); ++it)
+                {
+                    optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + *it;
+                    if(fs::exists(optres_path)) break;
+                }
+            }
+            else
+            {
+                optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + outputLocals.at(i);
+            }
+            
             outres_path = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + outputLocals.at(i);
             if(fs::exists(optres_path))
             {
-                filesPassed = 0;
-                if(bEnableProgressBar) filesCount =  GetNumOfFilesInDirrectory(optres_path);
+                processed_locals.push_back(outputLocals.at(i));
+                if(bEnableProgressBar) filesCount +=  GetNumOfFilesInDirrectory(optres_path);
 
                 fs::create_directories(InLower(outres_path));
                 RecursiveCopy(optres_path, InLower(outres_path), optres_path);
-
-                JoinThreads();
             }
+            else
+            {
+                if(bEnableLogging) logFile << "WARNING: " << "Localization " << outputLocals.at(i) << " was not found." << std::endl;
+            }
+            
         }
 
         //for en local
+        filesPassed = 0;
         for (size_t i = 0; i < enLocVariants.size(); i++)
         {
             optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + enLocVariants.at(i);
             outres_path = sDefaultOutpPath + "\\" + sOutSubDir;
+            
             if(fs::exists(optres_path))
             {
                 if(enLocVariants.at(i) == "data")
                 {
                     outres_path = outres_path.erase(outres_path.size() - enLocVariants.at(i).size(), outres_path.size());
                 }
+                
                 RecursiveCopy(optres_path, InLower(outres_path), optres_path);
-                JoinThreads();
                 break;
             }
         }
+        JoinThreads();
 
     }
     std::cout << "Operation time: " << StopTimerInNormalTime() << std::endl;
+    if(errorCounter > 0) std::cout << "INFO: " << "Found " << errorCounter << " errors while running. Check log." << std::endl;
     if(bEnableLogging) logFile.close();
 
     return 0;

@@ -9,6 +9,7 @@ std::vector<std::thread> vWorkerThreads;
 size_t filesCount = 0;
 size_t filesPassed = 0;
 size_t diffCounter = 0;
+size_t errorCounter = 0;
 
 std::ofstream logFile;
 
@@ -16,7 +17,7 @@ std::chrono::steady_clock::time_point prvTime;
 
 extern bool bEnableLogging;
 extern bool bEnableProgressBar;
-extern bool bIgnoreFlv;
+extern bool bUseOptRes;
 
 std::string getCmdOption(char ** begin, char ** end, const std::string & option)
 {
@@ -74,26 +75,38 @@ std::string StopTimerInNormalTime()
 
 void CopyRemove(const std::string& from, const std::string& to)
 {
-    if(fs::exists(to)) fs::remove(to);
-    fs::copy(from, to);
+    if(fs::exists(to)) 
+    {
+        if(bEnableLogging) logFile << "INFO: " << "Updating file " << to << std::endl;
+        fs::remove(to);
+    }
+
+    try
+    {
+        fs::copy(from, to);
+    }
+    catch(const std::exception& e)
+    {
+        if(bEnableLogging) logFile << "ERROR: " << e.what() << std::endl;
+        errorCounter++;
+    }
 }
 
 void RecursiveCopy(const std::string& from, const std::string& to, const std::string& prefix)
 {
     for (const auto& entry : fs::directory_iterator(from)) 
     {
-        const auto filenameStr = entry.path().filename().string();
         if (entry.is_directory()) 
         {
-            RecursiveCopy(entry.path().string(), to, prefix);
             if(bEnableProgressBar) DrawProgressBar(filesPassed, filesCount);
+            RecursiveCopy(entry.path().string(), to, prefix);
         }
         else if (entry.is_regular_file())
         {
             if(bEnableProgressBar) filesPassed++;
-            if(entry.path().extension().string() == ".flv" && bIgnoreFlv)
+            if(entry.path().extension().string() == ".flv" && bUseOptRes)
             {
-                if(bEnableLogging) logFile << "Flv file ignored: " << filenameStr << std::endl;
+                if(bEnableLogging) logFile << "INFO: " << "File ignored: " << entry.path() << std::endl;
             }
             else
             {
@@ -106,7 +119,7 @@ void RecursiveCopy(const std::string& from, const std::string& to, const std::st
             }
         }
         else
-            if(bEnableLogging) logFile << "Unknown file" << " [?]" << filenameStr << std::endl;
+            if(bEnableLogging) logFile << "INFO: " << "Unknown file" << " [?]" << entry.path() << std::endl;
     }
 }
 
