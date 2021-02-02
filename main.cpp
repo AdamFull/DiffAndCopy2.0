@@ -12,12 +12,6 @@
 #define JSON11_ENABLE_DR1467_CANARY 0
 #endif
 
-#ifdef _WIN32
-#define SLASHES "\\"
-#else
-#define SLASHES "/"
-#endif
-
 #define VERSION "version 2.0"
 
 extern std::vector<std::thread> vWorkerThreads;
@@ -99,7 +93,6 @@ void CheckDiffAndCopy(const std::string& rHash, const std::string& sTarget, cons
             fs::create_directories(InLower(realFolderPath.string()));
             CopyRemove(nTarget.fpath.string(), InLower(realFolderPath.string()) + SLASHES + InLower(nTarget.fname));
             diffCounter++;
-            iCurActiveThreads++;
         }
         catch(std::exception e)
         {

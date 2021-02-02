@@ -6,6 +6,12 @@
 #include <filesystem>
 #include <thread>
 
+#ifdef _WIN32
+#define SLASHES "\\"
+#else
+#define SLASHES "/"
+#endif
+
 namespace fs = std::filesystem;
 
 std::string getCmdOption(char ** begin, char ** end, const std::string & option);

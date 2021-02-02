@@ -47,8 +47,8 @@ void DrawProgressBar(size_t done, size_t all, size_t bar_width)
     std::cout << "[";
     int pos = bar_width * progress;
     for (int i = 0; i < bar_width; ++i) {
-        if (i < pos) std::cout << (char)219;
-        else if (i == pos) std::cout << (char)220;
+        if (i < pos) std::cout << '0' + 219;
+        else if (i == pos) std::cout << '0' + 220;
         else std::cout << " ";
     }
     std::cout << "] " << int(progress * 100.0) << " %\r";
@@ -113,7 +113,7 @@ void RecursiveCopy(const std::string& from, const std::string& to, const std::st
             {
                 std::string sCurPath = entry.path().string();
                 std::string sRealFolderPath = to + entry.path().parent_path().string().erase(0, prefix.size());
-                std::string filepath = InLower(sRealFolderPath) + "\\" + InLower(entry.path().filename().string());
+                std::string filepath = InLower(sRealFolderPath) + SLASHES + InLower(entry.path().filename().string());
                 //TODO: make it parallel
                 fs::create_directories(InLower(sRealFolderPath));
                 vWorkerThreads.emplace_back(CopyRemove, entry.path().string(), filepath);
