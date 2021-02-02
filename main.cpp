@@ -12,6 +12,12 @@
 #define JSON11_ENABLE_DR1467_CANARY 0
 #endif
 
+#ifdef _WIN32
+#define SLASHES "\\"
+#else
+#define SLASHES "/"
+#endif
+
 #define VERSION "version 2.0"
 
 extern std::vector<std::thread> vWorkerThreads;
@@ -82,8 +88,8 @@ void CheckDiffAndCopy(const std::string& rHash, const std::string& sTarget, cons
     if(rHash != nTarget.fhash)
     {
         
-        std::string outPath = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + outLoc + "\\" + sTargetSubDir;
-        std::string outPathPrefix = sDefaultInPath + "\\" + inLoc + "\\" + sTargetSubDir;
+        std::string outPath = sDefaultOutpPath + SLASHES + sOutSubDir + SLASHES + outLoc + SLASHES + sTargetSubDir;
+        std::string outPathPrefix = sDefaultInPath + SLASHES + inLoc + SLASHES + sTargetSubDir;
         std::string sRealFolderPath = outPath + nTarget.dpath.string().erase(0, outPathPrefix.size());
         fs::path realFolderPath = fs::path(sRealFolderPath);
 
@@ -91,8 +97,9 @@ void CheckDiffAndCopy(const std::string& rHash, const std::string& sTarget, cons
         try
         {
             fs::create_directories(InLower(realFolderPath.string()));
-            CopyRemove(nTarget.fpath.string(), InLower(realFolderPath.string()) + "\\" + InLower(nTarget.fname));
+            CopyRemove(nTarget.fpath.string(), InLower(realFolderPath.string()) + SLASHES + InLower(nTarget.fname));
             diffCounter++;
+            iCurActiveThreads++;
         }
         catch(std::exception e)
         {
@@ -128,13 +135,14 @@ void ReadDirrectory(const fs::path& srSearchPath)
                 for(size_t i = 0; i < inputLocals.size(); i++)
                 {
                     std::string sCurPath = entry.path().string();
-                    std::string sForReplace = "\\" + inputLocals[i] + "\\";
-                    std::string sSubstr = std::string("\\" + sRefDir + "\\");
+                    std::string sForReplace = SLASHES + inputLocals[i] + SLASHES;
+                    std::string sSubstr = std::string(SLASHES + sRefDir + SLASHES);
                     sCurPath.replace(sCurPath.find(sSubstr), sSubstr.length(), sForReplace);
                     fs::path pCurPath = fs::path(sCurPath);
                     if(fs::exists(pCurPath))
                         vWorkerThreads.emplace_back(CheckDiffAndCopy, nReference.fhash, sCurPath, inputLocals.at(i), outputLocals.at(i));
                 }
+                JoinThreads();
             }
             
         }
@@ -148,7 +156,7 @@ void CheckInputPaths(std::vector<std::string>& inputsCheck, std::vector<std::str
 {
     for(size_t i = 0; i < inputsCheck.size(); i++)
     {
-        fs::path curPath = fs::path(sDefaultInPath + "\\" + inputsCheck.at(i) + "\\" + sTargetSubDir);
+        fs::path curPath = fs::path(sDefaultInPath + SLASHES + inputsCheck.at(i) + SLASHES + sTargetSubDir);
         if(!fs::exists(curPath))
         {
             inputsCheck.erase(inputsCheck.begin() + i);
@@ -304,7 +312,7 @@ int main(int argc, char * argv[])
     CheckInputPaths(inputLocals, outputLocals);
 
     std::cout << "Checking difference..." << std::endl;
-    fs::path curPath = fs::path(sDefaultInPath + "\\" + sRefDir + "\\" + sTargetSubDir);
+    fs::path curPath = fs::path(sDefaultInPath + SLASHES + sRefDir + SLASHES + sTargetSubDir);
 
     if(!fs::exists(curPath))
     {
@@ -315,15 +323,12 @@ int main(int argc, char * argv[])
     if(bEnableProgressBar) filesCount =  GetNumOfFilesInDirrectory(curPath);
     ReadDirrectory(curPath);
 
-    JoinThreads();
-
     //TODO: Check is already exists
     std::cout << std::endl << "Copying EN folder." << std::endl;
-    std::string referenceOut = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + sTargetSubDir;
+    std::string referenceOut = sDefaultOutpPath + SLASHES + sOutSubDir + SLASHES + sTargetSubDir;
     filesPassed = 0;
     fs::create_directories(InLower(referenceOut));
     RecursiveCopy(curPath.string(), InLower(referenceOut), curPath.string());
-    JoinThreads();
 
     if(bUseOptRes)
     { 
@@ -338,7 +343,7 @@ int main(int argc, char * argv[])
             {
                 for(std::vector<std::string>::iterator it = сzech_variants.begin(); it != сzech_variants.end(); ++it)
                 {
-                    optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + *it;
+                    optres_path = sDefaultInPath + SLASHES + sOptRes + SLASHES + *it;
                     if(fs::exists(optres_path)) break;
                 }
             }
@@ -346,16 +351,16 @@ int main(int argc, char * argv[])
             {
                 for(std::vector<std::string>::iterator it = german_variants.begin(); it != german_variants.end(); ++it)
                 {
-                    optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + *it;
+                    optres_path = sDefaultInPath + SLASHES + sOptRes + SLASHES + *it;
                     if(fs::exists(optres_path)) break;
                 }
             }
             else
             {
-                optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + outputLocals.at(i);
+                optres_path = sDefaultInPath + SLASHES + sOptRes + SLASHES + outputLocals.at(i);
             }
             
-            outres_path = sDefaultOutpPath + "\\" + sOutSubDir + "\\" + outputLocals.at(i);
+            outres_path = sDefaultOutpPath + SLASHES + sOutSubDir + SLASHES + outputLocals.at(i);
             if(fs::exists(optres_path))
             {
                 processed_locals.push_back(outputLocals.at(i));
@@ -375,8 +380,8 @@ int main(int argc, char * argv[])
         filesPassed = 0;
         for (size_t i = 0; i < enLocVariants.size(); i++)
         {
-            optres_path = sDefaultInPath + "\\" + sOptRes + "\\" + enLocVariants.at(i);
-            outres_path = sDefaultOutpPath + "\\" + sOutSubDir;
+            optres_path = sDefaultInPath + SLASHES + sOptRes + SLASHES + enLocVariants.at(i);
+            outres_path = sDefaultOutpPath + SLASHES + sOutSubDir;
             
             if(fs::exists(optres_path))
             {
@@ -389,7 +394,6 @@ int main(int argc, char * argv[])
                 break;
             }
         }
-        JoinThreads();
 
     }
     std::cout << "Operation time: " << StopTimerInNormalTime() << std::endl;

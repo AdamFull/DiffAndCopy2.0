@@ -99,6 +99,7 @@ void RecursiveCopy(const std::string& from, const std::string& to, const std::st
         if (entry.is_directory()) 
         {
             if(bEnableProgressBar) DrawProgressBar(filesPassed, filesCount);
+            if(vWorkerThreads.size() != 0) JoinThreads();
             RecursiveCopy(entry.path().string(), to, prefix);
         }
         else if (entry.is_regular_file())
