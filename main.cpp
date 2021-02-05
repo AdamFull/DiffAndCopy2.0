@@ -113,6 +113,7 @@ void ReadDirrectory(const fs::path& srSearchPath)
             if(bEnableLogging) logFile << "INFO: " << "In folder " << entry.path().string() << " found " << diffCounter << " diffs" << std::endl;
             diffCounter = 0;
             if(bEnableProgressBar) DrawProgressBar(filesPassed, filesCount);
+            if(vWorkerThreads.size() > 0) JoinThreads();
             ReadDirrectory(entry);
         }
         else if (entry.is_regular_file())
@@ -135,7 +136,7 @@ void ReadDirrectory(const fs::path& srSearchPath)
                     if(fs::exists(pCurPath))
                         vWorkerThreads.emplace_back(CheckDiffAndCopy, nReference.fhash, sCurPath, inputLocals.at(i), outputLocals.at(i));
                 }
-                JoinThreads();
+                
             }
             
         }
@@ -164,9 +165,9 @@ bool ReadConfiguration()
     std::ifstream jsonConfig;
     //#define Debug
 
-    /*#ifdef Debug
-    jsonConfig.open("..\\..\\config.json");
-    #else*/
+    //#ifdef Debug
+    //jsonConfig.open("..\\..\\config.json");
+    //#else
     jsonConfig.open(sConfigPath);
     //#endif
 
@@ -177,12 +178,6 @@ bool ReadConfiguration()
         const auto json = json11::Json::parse(jsonData, err);
         if(!json.is_null())
         {
-            if(sDefaultInPath.empty())
-                sDefaultInPath = json["default_input_path"].string_value();
-
-            if(sDefaultOutpPath.empty())
-                sDefaultOutpPath = json["default_output_path"].string_value();
-            
             if(sRefDir.empty())
                 sRefDir = json["reference_dirrectory"].string_value();
             
@@ -264,6 +259,7 @@ int main(int argc, char * argv[])
             std::cout << "-sd Target subdirrectory. Directory inside reference folder." << std::endl;
             std::cout << "-od Output subdirrectory. Directory where program will save output files." << std::endl;
             std::cout << "-cp Config file path." << std::endl;
+            return 0;
         }
     }
     else
@@ -309,7 +305,7 @@ int main(int argc, char * argv[])
 
     if(!fs::exists(curPath))
     {
-        std::cout << "Input path not found." << std::endl;
+        std::cout << "Input path: " << curPath << " was not found." << std::endl;
         return 0;
     }
 
@@ -329,6 +325,10 @@ int main(int argc, char * argv[])
         std::string optres_path;
         std::string outres_path;
         std::cout << std::endl << "Copying optimized." << std::endl;
+
+        optres_path = sDefaultInPath + SLASHES + sOptRes;
+        if(bEnableProgressBar) filesCount =  GetNumOfFilesInDirrectory(optres_path);
+
         for (size_t i = 0; i < outputLocals.size(); i++)
         {
             if(std::find(processed_locals.begin(), processed_locals.end(), outputLocals.at(i)) != processed_locals.end()) continue;
@@ -357,7 +357,6 @@ int main(int argc, char * argv[])
             if(fs::exists(optres_path))
             {
                 processed_locals.push_back(outputLocals.at(i));
-                if(bEnableProgressBar) filesCount +=  GetNumOfFilesInDirrectory(optres_path);
 
                 fs::create_directories(InLower(outres_path));
                 RecursiveCopy(optres_path, InLower(outres_path), optres_path);
@@ -389,9 +388,11 @@ int main(int argc, char * argv[])
         }
 
     }
-    std::cout << "Operation time: " << StopTimerInNormalTime() << std::endl;
+    std::cout << std::endl << "Operation time: " << StopTimerInNormalTime() << std::endl;
     if(errorCounter > 0) std::cout << "INFO: " << "Found " << errorCounter << " errors while running. Check log." << std::endl;
     if(bEnableLogging) logFile.close();
+
+    JoinThreads();
 
     return 0;
 }
